@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-native",
+    "lib": ["ES2020"],
+    "allowJs": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "paths": {
+      "@streambrws/shared-types": ["../../packages/shared-types/src"],
+      "@streambrws/shared-logic": ["../../packages/shared-logic/src"],
+      "@streambrws/ui-tokens": ["../../packages/ui-tokens/src"]
+    }
+  },
+  "include": ["src", "App.tsx"]
+}

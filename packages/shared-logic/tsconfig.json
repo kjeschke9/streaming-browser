@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@streambrws/shared-types": ["../shared-types/src"]
+    }
+  },
+  "include": ["src"]
+}

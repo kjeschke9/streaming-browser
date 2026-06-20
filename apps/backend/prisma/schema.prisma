@@ -1,0 +1,100 @@
+// Prisma schema for StreamBrws backend
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── User & Auth ─────────────────────────────────────────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  refreshTokens  RefreshToken[]
+  profile        UserProfile?
+  exclusionTags  ExclusionTag[]
+  hiddenTitles   HiddenTitle[]
+  safeFeedConfig SafeFeedConfig?
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── User Profile ─────────────────────────────────────────────────────────────
+model UserProfile {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Service toggles stored as JSON: { "netflix": true, "hulu": false, ... }
+  serviceToggles         Json     @default("{}")
+  hiddenTitleSearchEnabled Boolean @default(false)
+  lastSyncedAt           DateTime?
+  updatedAt              DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
+// ─── Exclusion Tags ───────────────────────────────────────────────────────────
+model ExclusionTag {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tag       String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tag])
+  @@index([userId])
+  @@map("exclusion_tags")
+}
+
+// ─── Hidden Titles ────────────────────────────────────────────────────────────
+model HiddenTitle {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  titleId        String   // External content ID
+  serviceId      String   // ServiceId enum value
+  titleSnapshot  String   // Title name at time of hiding
+  hiddenAt       DateTime @default(now())
+
+  @@unique([userId, titleId, serviceId])
+  @@index([userId])
+  @@map("hidden_titles")
+}
+
+// ─── Safe-Feed Config ─────────────────────────────────────────────────────────
+model SafeFeedConfig {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled            Boolean  @default(false)
+  pinHash            String?  // bcrypt hash; never returned to client
+  allowedServiceIds  Json     @default("[]") // string[]
+  allowedTags        Json     @default("[]") // string[]
+  updatedAt          DateTime @updatedAt
+
+  @@map("safe_feed_configs")
+}

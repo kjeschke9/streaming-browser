@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "StreamBrws",
+    "slug": "streambrws",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#3D0018"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.streambrws.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#3D0018"
+      },
+      "package": "com.streambrws.app"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-router"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://localhost:4000/api"
+    }
+  }
+}
