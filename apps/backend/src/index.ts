@@ -1,46 +1,79 @@
+/**
+ * Backend entry point (v3) — adds watchlist + titles routes.
+ */
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import { env } from './config/env';
-import authRoutes from './routes/auth';
-import profileRoutes from './routes/profile';
-import { errorHandler, notFound } from './middleware/errorHandler';
+import express      from 'express';
+import cors         from 'cors';
+import helmet       from 'helmet';
+import compression  from 'compression';
+import { rateLimit } from 'express-rate-limit';
+import { logger }   from './utils/logger';
+import { pool }     from './db/pool';
 
-const app = express();
+// Routes
+import authRouter       from './routes/auth';
+import servicesRouter   from './routes/services';
+import exclusionRouter  from './routes/exclusion';
+import searchRouter     from './routes/search';
+import pinRouter        from './routes/pin';
+import discoveryRouter  from './routes/discovery';
+import syncStatusRouter from './routes/syncStatus';
+import watchlistRouter  from './routes/watchlist';
+import titlesRouter     from './routes/titles';
 
-// ─── Security ──────────────────────────────────────────────────────────────
+const app  = express();
+const PORT = process.env.PORT ?? 4000;
+
+// ── Security / middleware ─────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin: env.CORS_ORIGIN.split(',').map(s => s.trim()),
+  origin:      process.env.CORS_ORIGINS?.split(',') ?? [
+    'http://localhost:3000',
+    'http://localhost:19006',
+    'http://localhost:5173',
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+}));
+app.use(compression());
+app.use(express.json({ limit: '1mb' }));
+app.use(rateLimit({
+  windowMs: 60_000,
+  max:      200,
+  standardHeaders: true,
+  legacyHeaders:   false,
 }));
 
-// ─── Rate Limiting ─────────────────────────────────────────────────────────
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true });
-
-app.use(limiter);
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// ─── Health ────────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.json({ ok: true, status: 'healthy', timestamp: new Date().toISOString() });
+// ── Health ────────────────────────────────────────────────────────────────────
+app.get('/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', db: 'connected', ts: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: 'error', db: 'disconnected' });
+  }
 });
 
-// ─── Routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/profile', profileRoutes);
+// ── API routes ────────────────────────────────────────────────────────────────
+app.use('/api/auth',       authRouter);
+app.use('/api/services',   servicesRouter);
+app.use('/api/exclusion',  exclusionRouter);
+app.use('/api/exclusion',  pinRouter);
+app.use('/api/search',     searchRouter);
+app.use('/api/discovery',  discoveryRouter);
+app.use('/api/sync',       syncStatusRouter);
+app.use('/api/watchlist',  watchlistRouter);
+app.use('/api/titles',     titlesRouter);
 
-// ─── Error handling ────────────────────────────────────────────────────────
-app.use(notFound);
-app.use(errorHandler);
+// ── 404 + error handler ───────────────────────────────────────────────────────
+app.use((_req, res) => res.status(404).json({ success: false, error: 'Not found' }));
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error(err.message, { stack: err.stack });
+  res.status(500).json({ success: false, error: 'Internal server error' });
+});
 
-app.listen(env.PORT, () => {
-  console.log(`🚀 StreamBrws API running on port ${env.PORT} [${env.NODE_ENV}]`);
+// ── Start ─────────────────────────────────────────────────────────────────────
+app.listen(PORT, () => {
+  logger.info(`Backend listening on port ${PORT}`);
 });
 
 export default app;
