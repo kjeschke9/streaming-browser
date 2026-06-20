@@ -5,6 +5,8 @@
     "rootDir": "./src",
     "module": "CommonJS",
     "target": "ES2020",
+            "skipLibCheck": true,
+            "noEmitOnError": false,
     "paths": {
       "@streambrws/shared-types": ["../../packages/shared-types/src"]
     }
