@@ -1,47 +1,36 @@
-/**
- * GET /api/titles/:id — fetch a single title by its internal UUID.
- * Used by TitleDetailScreen when only the ID is known (e.g. from a push notification).
- */
-
-import { Router }          from 'express';
-import { pool }            from '../db/pool';
-import { authenticate }    from '../middleware/auth';
-import { ok, serverError, notFound } from '../utils/response';
+import { Router, Request, Response } from 'express';
+import { pool } from '../db/pool';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/:id', authenticate, async (req, res) => {
+// GET /api/titles/:id
+router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
+  const { id } = req.params;
   try {
-    const { id } = req.params;
-    const { rows } = await pool.query(
-      `SELECT * FROM title_cache WHERE id = $1 AND stale_at IS NULL`,
-      [id]
-    );
-    if (!rows.length) return notFound(res, 'Title');
+    const result = await pool.query(`SELECT * FROM title_cache WHERE id = $1`, [id]);
+    if (!result.rows[0]) return res.status(404).json({ success: false, error: 'Title not found' });
+    res.json({ success: true, title: result.rows[0] });
+  } catch {
+    res.status(500).json({ success: false, error: 'Failed to fetch title' });
+  }
+});
 
-    const row = rows[0];
-    const title = {
-      id:          row.id,
-      externalId:  row.external_id,
-      serviceId:   row.service_id,
-      title:       row.title,
-      description: row.description ?? '',
-      type:        row.type,
-      genres:      row.genres ?? [],
-      tags:        row.tags ?? [],
-      rating:      row.rating,
-      year:        row.year,
-      duration:    row.duration_minutes ?? undefined,
-      seasons:     row.seasons ?? undefined,
-      posterUrl:   row.poster_url,
-      backdropUrl: row.backdrop_url ?? undefined,
-      deepLink:    row.deep_link,
-      popularity:  row.popularity ?? 0,
-      addedAt:     (row.created_at ?? new Date()).toISOString(),
-    };
-    return ok(res, { title });
-  } catch (err: any) {
-    return serverError(res, err);
+// GET /api/titles?service=&type=&limit=
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
+  const service = req.query['service'] as string | undefined;
+  const type    = req.query['type']    as string | undefined;
+  const limit   = Math.min(parseInt(req.query['limit'] as string ?? '50', 10), 100);
+  const params: any[] = [];
+  let sql = `SELECT * FROM title_cache WHERE 1=1`;
+  if (service) { params.push(service); sql += ` AND service_id = $${params.length}`; }
+  if (type)    { params.push(type);    sql += ` AND type = $${params.length}`; }
+  sql += ` ORDER BY popularity DESC LIMIT ${limit}`;
+  try {
+    const result = await pool.query(sql, params);
+    res.json({ success: true, titles: result.rows });
+  } catch {
+    res.status(500).json({ success: false, error: 'Failed to fetch titles' });
   }
 });
 
